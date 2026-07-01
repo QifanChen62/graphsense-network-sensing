@@ -65,7 +65,8 @@ Why this is stronger than only synthetic speed benchmarks:
 - It adds an online method selector: early-stream duplication, nonzero growth, entropy, Gini, and top-share features recommend sparse direct or pandas groupby and are checked against saved exact-method benchmark winners.
 - It adds time-bin anomaly demonstrations using total traffic, fanout, destination concentration, distributed low-rate scan coverage, and robust positive-deviation scores.
 - It makes traffic shape central to method choice, which is scientifically more useful than claiming one method wins everywhere.
-- It remains honest: experiments are synthetic commodity-CPU benchmarks, the reference comparison is local paper-formula code, and no official full-reference or CAIDA-scale result is claimed.
+- It validates on real challenge data: a 5,000,000-packet byte-range prefix of the official anonymized capture is fetched and parsed by a small reproducible script, and the selector, certificate, and capacity findings are checked against it.
+- It remains honest: experiments are synthetic commodity-CPU benchmarks plus an official-capture prefix, the reference comparison is local paper-formula code, and no official full-reference or full-capture-scale result is claimed.
 
 Positioning against reference-code improvement work:
 

@@ -17,6 +17,7 @@ The project does not claim Champion-level throughput. It is designed to be easy 
 - Includes a candidate-capacity sensitivity study showing that diffuse-regime failure is largely candidate-discovery limited.
 - Adds an early-stream method selector that recommends exact sparse vs pandas groupby using cheap traffic-shape features.
 - Adds a conservative certified selector that reports prefix-based sketch safety conditions and writes v1 results under `results_v1/`.
+- Fetches a 256 MiB byte-range prefix of the official anonymized capture (`pcap.zst`), parses 5,000,000 packet records in seconds, and validates the selector, certificate, and candidate-capacity findings on real challenge data.
 - Computes per-time-bin sensing summaries for volume burst, scanner fanout, concentrated-destination, and distributed low-rate scan anomalies.
 - Runs a small Matrix Market sparse-coordinate smoke test for GraphBLAS-style official-format compatibility.
 - Compares our sparse path against transparent pandas/Python baselines and a GraphChallenge-paper-style reference formula compatibility check.
@@ -62,8 +63,16 @@ make streaming-figures
 make candidate-sensitivity
 make method-selector
 make certified-selector
+make certified-positive
 make timebin-anomaly
 make official-format-smoke
+
+# Fetch a byte-range prefix of the official anonymized capture and validate on it.
+# Downloads the first 256 MiB of the official pcap.zst (not the full 13.9 GB file),
+# stream-decompresses the truncated frame, and parses packet records into
+# data/real/official_prefix_edges.csv with a provenance manifest.
+make fetch-official-prefix
+make real-data
 
 # Compare ours against the local GraphChallenge-paper-formula compatibility path.
 python3 scripts/compare_reference.py --output results/reference_comparison.csv --n-edges 100000 --regime community_bursty
@@ -120,7 +129,11 @@ The benchmark writes:
 - `results/streaming_sensitivity.csv`
 - `results/candidate_sensitivity.csv`
 - `results/method_selector_summary.csv`
+- `results/real_data_summary.csv`
+- `results/real_data_candidate_sensitivity.csv`
 - `results_v1/certified_selector_summary.csv`
+- `results_v1/certified_selector_tuned_summary.csv`
+- `results_v1/certified_selector_official_summary.csv`
 - `results/timebin_anomaly_summary.csv`
 - `results/timebin_anomaly_scenarios.csv`
 - `results/official_format_smoke.csv`
@@ -138,7 +151,7 @@ The benchmark writes:
 
 ## Official Reference and Data Notes
 
-The official GraphChallenge data page lists Anonymized Network Sensing PCAP and GraphBLAS-format data products. They are large enough that this repo does not download them by default. The paper also describes reference sparse-matrix quantities for traffic-matrix sensing. This repository includes:
+The official GraphChallenge data page lists Anonymized Network Sensing PCAP and GraphBLAS-format data products. The full files are 8-14 GB, so this repo does not download them by default. Instead, `scripts/fetch_official_prefix.py` Range-downloads only the first 256 MiB of the official `pcap.zst`, stream-decompresses the truncated zstd frame, parses the fixed-size packet records, and emits an anonymized `src,dst,bytes` edge table plus a provenance manifest (`data/real/official_prefix_manifest.json`, committed). The parsed identifiers are the challenge-provided anonymized addresses used as opaque integer labels; no re-anonymization is applied. This prefix is used to validate the parser, the early-stream method selector, the certified sketch checks, and the candidate-capacity findings on real challenge data. It is a prefix, not the full capture, and full-capture throughput is not claimed. The paper also describes reference sparse-matrix quantities for traffic-matrix sensing. This repository includes:
 
 - `scripts/run_reference.py`, a wrapper for a separately checked-out official reference implementation.
 - `scripts/official_format_smoke.py`, a small Matrix Market sparse-coordinate round-trip test for GraphBLAS-style matrix compatibility. It does not use official data.

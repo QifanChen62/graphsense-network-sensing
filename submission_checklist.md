@@ -20,6 +20,10 @@
 - [x] Local GraphChallenge-paper-style reference formula compatibility check on a small reproducible sample.
 - [x] Benchmark CSV output.
 - [x] Figure generation from saved CSVs.
+- [x] Official-data prefix validation: `scripts/fetch_official_prefix.py` Range-downloads 256 MiB of the official `pcap.zst`, parses 5,000,000 packets in under five seconds, and commits a provenance manifest.
+- [x] Real-data experiment validates the early-stream selector against the measured exact-method winner and sweeps candidate capacity on the official prefix (`results/real_data_summary.csv`, `results/real_data_candidate_sensitivity.csv`).
+- [x] Certified selector positive case: width 16,384 and candidate capacity 5,000 certify the hotspot regime (`results_v1/certified_selector_tuned_summary.csv`); diffuse regimes and the official prefix remain correctly uncertified.
+- [x] Candidate tracker eviction uses a lazy-deletion heap so all-unique streams cost O(log capacity) per record.
 - [x] Literature and discussion review saved in `docs/literature_and_discussion_review.md`.
 - [x] IEEE/HPEC-style paper draft under six pages.
 - [x] Paper compiles to a PDF under the six-page limit with the current draft content.
@@ -29,7 +33,7 @@
 ## Optional If Official Data Is Available
 
 - [ ] Run the full official GraphChallenge reference code on the same small input if a reference checkout and compatible input path are available.
-- [ ] Replace or supplement synthetic benchmarks with a small official/example data slice if access is available.
+- [x] Replace or supplement synthetic benchmarks with a small official/example data slice if access is available. (Done via the 256 MiB byte-range prefix of the official capture.)
 - [ ] Add a true official-reference comparison table only after actually running the official reference implementation.
 
 ## Must Do Before Upload
