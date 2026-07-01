@@ -2,7 +2,7 @@ PYTHON ?= python3
 MPLCONFIGDIR ?= /tmp/graphsense-mpl
 PYTHONPYCACHEPREFIX ?= /tmp/graphsense-pycache
 
-.PHONY: setup-check sample benchmark streaming-benchmark streaming-sensitivity candidate-sensitivity timebin-anomaly method-selector certified-selector official-format-smoke large-benchmark reference figures large-figures streaming-figures smoke test clean
+.PHONY: setup-check sample benchmark streaming-benchmark streaming-sensitivity candidate-sensitivity timebin-anomaly method-selector certified-selector certified-positive official-format-smoke large-benchmark reference fetch-official-prefix real-data figures large-figures streaming-figures paper-numbers smoke test clean
 
 setup-check:
 	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/setup_check.py
@@ -37,6 +37,17 @@ method-selector:
 certified-selector:
 	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/certified_selector.py --output results_v1/certified_selector_summary.csv --n-edges 5000000 --prefix-edges 50000 --top-k 20 --regimes hotspot_zipf community_bursty scanner_fanout uniform_sparse
 
+certified-positive:
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/certified_selector.py --output results_v1/certified_selector_tuned_summary.csv --n-edges 5000000 --prefix-edges 50000 --top-k 20 --regimes hotspot_zipf community_bursty scanner_fanout uniform_sparse --current-width 16384 --current-candidate-capacity 5000
+	@test -f data/real/official_prefix_edges.csv && PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/certified_selector.py --inputs data/real/official_prefix_edges.csv --output results_v1/certified_selector_official_summary.csv --prefix-edges 50000 --top-k 20 || echo "data/real/official_prefix_edges.csv missing; skipping official-data certificate (run make fetch-official-prefix)"
+
+fetch-official-prefix:
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/fetch_official_prefix.py --bytes 268435456 --max-packets 5000000 --output data/real/official_prefix_edges.csv
+
+real-data:
+	@test -f data/real/official_prefix_edges.csv || (echo "data/real/official_prefix_edges.csv missing; run make fetch-official-prefix first" && exit 1)
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/real_data_experiment.py --input data/real/official_prefix_edges.csv --summary-output results/real_data_summary.csv --sensitivity-output results/real_data_candidate_sensitivity.csv
+
 official-format-smoke:
 	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/official_format_smoke.py --matrix-output data/official_format/tiny_traffic_matrix.mtx --summary-output results/official_format_smoke.csv
 
@@ -51,6 +62,9 @@ large-figures: large-benchmark
 
 streaming-figures: streaming-benchmark streaming-sensitivity candidate-sensitivity
 	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/make_streaming_figures.py --input results/streaming_benchmark.csv --outdir figures
+
+paper-numbers: figures large-figures streaming-figures timebin-anomaly method-selector certified-selector certified-positive official-format-smoke
+	@echo "all paper-facing CSVs and figures regenerated"
 
 smoke: setup-check sample
 	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/run_ours.py --input data/sample/tiny_edges.csv --out-prefix results/tiny

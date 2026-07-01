@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import heapq
 from dataclasses import asdict, dataclass
 
 import numpy as np
@@ -47,21 +48,41 @@ class CountMinSketch:
 
 
 class CandidateTracker:
-    """Space-saving style candidate tracker for heavy edge keys."""
+    """Space-saving style candidate tracker for heavy edge keys.
+
+    Eviction picks the minimum-count candidate via a lazy-deletion heap, so an
+    all-unique stream costs O(log capacity) per record instead of a full scan.
+    Ties on the minimum count are broken by heap insertion order.
+    """
 
     def __init__(self, capacity: int = 256) -> None:
         self.capacity = int(capacity)
         self.counts: dict[object, float] = {}
+        self._heap: list[tuple[float, int, object]] = []
+        self._order = 0
+
+    def _push(self, key: object, count: float) -> None:
+        self._order += 1
+        heapq.heappush(self._heap, (count, self._order, key))
 
     def update(self, key: object, weight: float) -> None:
         if key in self.counts:
             self.counts[key] += weight
+            self._push(key, self.counts[key])
             return
         if len(self.counts) < self.capacity:
             self.counts[key] = weight
+            self._push(key, weight)
             return
-        victim = min(self.counts, key=self.counts.get)
-        self.counts[key] = self.counts.pop(victim) + weight
+        while True:
+            count, _, victim = self._heap[0]
+            if victim in self.counts and self.counts[victim] == count:
+                break
+            heapq.heappop(self._heap)  # stale entry
+        heapq.heappop(self._heap)
+        new_count = self.counts.pop(victim) + weight
+        self.counts[key] = new_count
+        self._push(key, new_count)
 
     def candidates(self) -> list[object]:
         return list(self.counts)
