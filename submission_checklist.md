@@ -39,8 +39,9 @@
 ## Must Do Before Upload
 
 - [x] Replace TODO author metadata in `paper/main.tex` with final author name, institution, and email.
-- [ ] Recompile `paper/main.tex` and confirm the PDF remains at most six pages.
-- [ ] Audit all claims: no Champion-level, full CAIDA-scale, PCAP parse-time, official-data, or official-reference performance claims unless directly measured.
-- [ ] Confirm the official-reference/data caveat is still visible in `README.md`, `docs/challenge_notes.md`, and the paper.
-- [ ] Audit the repo for huge raw data, PCAPs, credentials, and unintended machine-local paths.
+- [x] Recompile `paper/main.tex` and confirm the PDF remains at most six pages. (Six pages exactly.)
+- [x] Audit all claims: no Champion-level or full CAIDA-scale claims; official-data claims are limited to the measured 256 MiB / 5,000,000-packet prefix; the official-prefix fetch/parse time is directly measured and recorded in the manifest.
+- [x] Confirm the official-reference/data caveat is still visible in `README.md`, `docs/challenge_notes.md`, and the paper Limitations section.
+- [x] Audit the repo for huge raw data, PCAPs, credentials, and unintended machine-local paths. (No tracked file over 5 MB; the 256 MiB `.part` cache and parsed CSV are gitignored; v0_stable LaTeX build logs untracked.)
 - [ ] Confirm bibliography formatting and final submission metadata.
+- [ ] Final PDF read-through before upload.

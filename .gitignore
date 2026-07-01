@@ -25,3 +25,11 @@ paper/*.fdb_latexmk
 paper/*.log
 paper/*.out
 paper/*.synctex.gz
+v0_stable/paper/*.aux
+v0_stable/paper/*.bbl
+v0_stable/paper/*.blg
+v0_stable/paper/*.fls
+v0_stable/paper/*.fdb_latexmk
+v0_stable/paper/*.log
+v0_stable/paper/*.out
+v0_stable/paper/*.synctex.gz
