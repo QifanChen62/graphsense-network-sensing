@@ -18,13 +18,13 @@ qifan\_chen@ucsb.edu}
 \maketitle
 
 \begin{abstract}
-The MIT/IEEE/Amazon GraphChallenge Anonymized Network Sensing track asks participants to construct and analyze anonymized source-to-destination traffic matrices from packet-derived data. We present a commodity-CPU reproducibility toolkit that lowers the entry barrier for student participants while making traffic-shape effects visible. The toolkit includes deterministic synthetic generators, exact sparse construction baselines, streaming/sketch heavy-hitter analytics, temporal bin summaries, and early-stream method selectors. On synthetic regimes up to 5,000,000 edge records, sparse direct construction wins on diffuse traffic while pandas pre-aggregation wins on highly duplicated hotspot traffic; a 50,000-record prefix correctly predicts the exact-method winner in all tested regimes. A conservative safety-certified selector reports when sketch top-$k$ claims are not certified by prefix gap and candidate-capacity conditions, exposing approximation risk rather than hiding it. Controlled time-bin experiments identify volume, scanner, concentrated-destination, and distributed low-rate scan anomalies. The contribution is not full CAIDA-scale throughput, but a transparent, reproducible, student-oriented bridge between official GraphChallenge materials and commodity sparse-matrix experimentation.
+The MIT/IEEE/Amazon GraphChallenge Anonymized Network Sensing track asks participants to construct and analyze anonymized source-to-destination traffic matrices from packet-derived data. We present a commodity-CPU reproducibility toolkit whose central empirical finding is that candidate-tracking capacity, not Count-Min sketch width, bounds heavy-hitter discovery on diffuse traffic: widening the sketch from 512 to 32{,}768 does not recover a single missed heavy hitter, while raising candidate capacity from 64 to 8{,}192 lifts diffuse-regime top-20 recall from 0 to 1.00. We validate on real challenge data by Range-downloading and parsing a 5{,}000{,}000-packet prefix of the official anonymized capture in seconds; the prefix is an extreme diffuse regime in which every packet is a unique source-destination pair, and the early-stream selector and a conservative safety certificate both correctly flag fixed-candidate sketching as unsafe while recommending the measured-fastest exact construction. On synthetic regimes up to 5,000,000 edge records, sparse direct construction wins on diffuse traffic while pandas pre-aggregation wins on highly duplicated hotspot traffic; a 50,000-record prefix correctly predicts the exact-method winner in all tested regimes, and the certificate identifies the sketch budget under which a concentrated regime becomes certified safe. Controlled time-bin experiments identify volume, scanner, concentrated-destination, and distributed low-rate scan anomalies. The contribution is not full-capture throughput, but a transparent, reproducible, student-oriented bridge between official GraphChallenge materials and commodity sparse-matrix experimentation.
 \end{abstract}
 
 \section{Introduction}
 Network sensing tasks often begin with very large streams of packet or flow records. The Anonymized Network Sensing Graph Challenge frames these records as sparse source-to-destination traffic matrices suitable for graph and linear-algebra analysis~\cite{anonymizedNetworkSensing2024}. Official GraphChallenge submissions are paper-based and reward measured innovation in graph analysis software, hardware, algorithms, and systems~\cite{graphchallenge2026,graphchallengeSubmit2026}. This submission targets a complementary point in the GraphChallenge design space: not maximum throughput, but a reproducible, inspectable, low-dependency baseline that makes traffic-shape dependence and approximation risk measurable.
 
-This work makes four contributions. First, it provides a commodity-CPU, low-dependency Python workflow from anonymized edge records to sparse traffic matrices and sensing summaries. Second, it adds a multi-regime synthetic benchmark that exposes when sparse direct construction, pandas pre-aggregation, and Python aggregation differ. Third, it includes a streaming/sketch path with explicit heavy-hitter recall diagnostics and candidate-capacity failure analysis. Fourth, it adds time-bin, early-stream, and conservative certificate layers that turn traffic-shape measurements into interpretable anomaly, method, and sketch-risk recommendations.
+This work makes five contributions. First, it provides a commodity-CPU, low-dependency Python workflow from anonymized edge records to sparse traffic matrices and sensing summaries. Second, it adds a multi-regime synthetic benchmark that exposes when sparse direct construction, pandas pre-aggregation, and Python aggregation differ. Third, it includes a streaming/sketch path whose central empirical result is that candidate-tracking capacity, not sketch width, bounds heavy-hitter discovery on diffuse traffic. Fourth, it adds time-bin, early-stream, and conservative certificate layers that turn traffic-shape measurements into interpretable anomaly, method, and sketch-risk recommendations. Fifth, it validates the parser, selector, certificate, and capacity findings on a 5{,}000{,}000-packet byte-range prefix of the official anonymized capture, fetched and parsed with a small reproducible script.
 
 \section{Related Work and Positioning}
 GraphChallenge traffic-matrix tasks are closely aligned with sparse linear algebra. GraphBLAS defines graph analytics in terms of sparse matrix operations~\cite{buluc2017graphblas}, and SuiteSparse:GraphBLAS shows how such ideas can be implemented efficiently~\cite{davis2019suitesparse}. Recent reference-implementation work for GraphChallenge emphasizes improving official pipeline clarity, adaptability, and performance~\cite{voloshchuk2026improving}. Our work is complementary: it does not replace a high-performance reference implementation, but focuses on a student-facing CPU toolkit with synthetic regime controls, streaming failure diagnostics, temporal anomaly summaries, and online method selection.
@@ -49,7 +49,7 @@ The implementation then computes analytics intended to be useful for network sen
 
 The repository includes three exact construction methods. The primary method builds a sparse matrix directly from edge records. A pandas baseline first groups by source and destination. A pure Python dictionary baseline aggregates pairs with a counter-like loop for small inputs. All exact methods are checked for output equivalence on the same synthetic inputs.
 
-The new streaming path processes edge records sequentially. It keeps exact source and destination strength summaries, a fixed-size Count-Min Sketch for approximate edge weights~\cite{cormode2005countmin}, and a bounded candidate tracker inspired by streaming heavy-hitter algorithms~\cite{misra1982finding}. The streaming path is intentionally evaluated as an online approximation rather than a faster replacement for optimized SciPy sparse construction. Its main diagnostic is top-$k$ heavy-hitter recall against the exact sparse matrix.
+The new streaming path processes edge records sequentially. It keeps exact source and destination strength summaries, a fixed-size Count-Min Sketch for approximate edge weights~\cite{cormode2005countmin}, and a bounded candidate tracker inspired by streaming heavy-hitter algorithms~\cite{misra1982finding}, with lazy-deletion heap eviction so that even all-unique streams cost $O(\log c)$ per record. The streaming path is intentionally evaluated as an online approximation rather than a faster replacement for optimized SciPy sparse construction. Its main diagnostic is top-$k$ heavy-hitter recall against the exact sparse matrix, which isolates candidate discovery from weight estimation and exposes the capacity bound reported in Section~\ref{sec:results}.
 
 The time-bin path groups the same edge records by a supplied \texttt{time\_bin} field and computes total traffic, nonzeros, source and destination entropy, edge-weight Gini, top-edge share, top-source share, top-destination share, and source/destination coverage. A robust positive-deviation score summarizes bins with unusually high traffic volume, fanout, concentration, or coverage. Network sensing is not only whole-matrix aggregation; temporal aggregation can expose burst, scan, or sudden concentration patterns that disappear in a single summed matrix.
 
@@ -71,25 +71,23 @@ The package is intentionally small. The main scripts are:
 \item setup, sample-generation, and sparse-analysis scripts;
 \item benchmark and figure scripts for exact, streaming, sensitivity, selector, and certified-selector experiments;
 \item a time-bin anomaly script for controlled network-sensing scenarios;
+\item an official-data prefix fetcher that Range-downloads the first $N$ compressed bytes of the official \texttt{pcap.zst}, stream-decompresses the truncated zstd frame, parses the fixed-size packet records, and emits an anonymized \texttt{src,dst,bytes} edge table with a provenance manifest;
 \item an optional reference wrapper and a local GraphChallenge-paper-style formula comparison.
 \end{itemize}
 
 The synthetic generator is not a substitute for CAIDA-scale data. It provides four regimes: \texttt{hotspot\_zipf}, \texttt{community\_bursty}, \texttt{scanner\_fanout}, and \texttt{uniform\_sparse}. It also exposes controlled knobs for edge count, source and destination counts, target nonzeros or density, duplication rate, Zipf skew, community structure, scanner fanout, and temporal bursts. These controls make the local benchmark runnable without protected downloads or multi-gigabyte packet captures while still testing multiple sparse traffic shapes.
 
 \section{Experiments}
-Experiments were run on a MacBook Air with Apple M3 CPU, 8 cores, 16 GB RAM, macOS 26.5.1 arm64, Python 3.9.6, NumPy 2.0.2 with Apple Accelerate BLAS/LAPACK, SciPy 1.13.1, pandas 2.3.3, and matplotlib 3.9.4. No GPU, distributed runtime, or manual BLAS thread pinning is used. The small benchmark uses generated edge tables at 5,000, 25,000, and 100,000 records, with three repeats and three exact methods. The large benchmark uses 1,000,000 and 5,000,000 records, one repeat, and two scalable exact methods. Reported construction and analytics runtimes exclude synthetic data generation and disk I/O unless otherwise stated; the input edge table is already resident in memory. The benchmark also records edges per second, nonzeros per input edge, and process peak RSS divided by input edges. The streaming benchmark uses 25,000, 100,000, and 500,000 records. Sensitivity studies vary sketch width and candidate capacity at 100,000 records. The method-selector and certified-selector experiments use the first 50,000 records of each generated 5,000,000-edge stream. Time-bin experiments inject volume burst, scanner fanout, concentrated-destination, and distributed low-rate scan events into synthetic bins. A small official-format smoke test writes and reloads a GraphBLAS-style Matrix Market sparse coordinate matrix and checks shape, nonzeros, and total weight against the edge-table pipeline. Commands are exposed through the repository Makefile.
+\label{sec:experiments}
+Experiments were run on a MacBook Air with Apple M3 CPU, 8 cores, 16 GB RAM, macOS 26.5.1 arm64, Python 3.9.6, NumPy 2.0.2 with Apple Accelerate BLAS/LAPACK, SciPy 1.13.1, pandas 2.3.3, matplotlib 3.9.4, and zstandard 0.25.0. No GPU, distributed runtime, or manual BLAS thread pinning is used.
+
+The official-data experiment uses a byte-range prefix of the official anonymized capture: an HTTP Range request fetches the first 256~MiB of the 13.9~GB official \texttt{pcap.zst}, the truncated zstd frame is stream-decompressed, and 5{,}000{,}000 fixed-size packet records (RAW-IP link type, 40-byte IPv4/TCP headers) are parsed with a vectorized NumPy path in under five seconds. Identifiers are the challenge-provided anonymized addresses used as opaque integer labels; no re-anonymization is applied. A provenance manifest records the URL, byte range, parser path, packet counts, and output checksum. The small benchmark uses generated edge tables at 5,000, 25,000, and 100,000 records, with three repeats and three exact methods. The large benchmark uses 1,000,000 and 5,000,000 records, one repeat, and two scalable exact methods. Reported construction and analytics runtimes exclude synthetic data generation and disk I/O unless otherwise stated; the input edge table is already resident in memory. The benchmark also records edges per second, nonzeros per input edge, and process peak RSS divided by input edges. The streaming benchmark uses 25,000, 100,000, and 500,000 records. Sensitivity studies vary sketch width and candidate capacity at 100,000 records. The method-selector and certified-selector experiments use the first 50,000 records of each generated 5,000,000-edge stream. Time-bin experiments inject volume burst, scanner fanout, concentrated-destination, and distributed low-rate scan events into synthetic bins. A small official-format smoke test writes and reloads a GraphBLAS-style Matrix Market sparse coordinate matrix and checks shape, nonzeros, and total weight against the edge-table pipeline. Commands are exposed through the repository Makefile.
 
 The key correctness check is output equivalence. For every benchmark row, the matrix produced by the method under test is compared with the sparse direct matrix. Total traffic is also compared. A benchmark row is marked valid only when both checks pass.
 
 \section{Results}
-Figure~\ref{fig:runtime} shows small benchmark mean runtime by input size, regime, and method. Figure~\ref{fig:large} shows the large benchmark. The exact numbers should be regenerated on the submission machine before final paper upload because Python package versions and CPU hardware affect the results.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{../figures/benchmark_runtime.png}
-\caption{Mean runtime for sparse traffic-matrix construction and summary analytics on reproducible synthetic inputs. The plot is a smoke-scale comparison; large-regime throughput is summarized separately in Table~\ref{tab:large}.}
-\label{fig:runtime}
-\end{figure}
+\label{sec:results}
+Figure~\ref{fig:large} shows the large benchmark. All numbers and figures in this section were generated on the machine described in Section~\ref{sec:experiments}, and the repository Makefile regenerates every table and figure from saved CSV outputs.
 
 \begin{figure}[t]
 \centering
@@ -129,15 +127,15 @@ Table~\ref{tab:large} reports the 5,000,000-edge large benchmark. The regimes di
 \toprule
 Regime & nnz/edge & Sparse & Sp. M/s & pandas & pd. M/s \\
 \midrule
-Hotspot & 0.044 & 0.189 & 26.4 & 0.141 & 35.5 \\
-Community & 0.451 & 0.351 & 14.2 & 0.873 & 5.7 \\
-Scanner & 0.992 & 0.462 & 10.8 & 1.261 & 4.0 \\
-Uniform & 0.999 & 0.367 & 13.6 & 1.224 & 4.1 \\
+Hotspot & 0.044 & 0.154 & 32.5 & 0.118 & 42.4 \\
+Community & 0.451 & 0.308 & 16.2 & 0.669 & 7.5 \\
+Scanner & 0.992 & 0.394 & 12.7 & 1.293 & 3.9 \\
+Uniform & 0.999 & 0.369 & 13.5 & 1.235 & 4.0 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:streaming} summarizes the streaming/sketch result at 500,000 edges. The Count-Min Sketch uses 327,680 bytes. It recovers all top-20 heavy hitters in hotspot traffic with median relative error below 0.001, but recall falls to 0.10 for community traffic and 0 for scanner and uniform regimes. A width sweep showed that increasing sketch width from 512 to 32,768 reduces hotspot median weight error from 0.0405 to 0 but does not improve diffuse-regime recall at fixed candidate capacity. Figure~\ref{fig:candidate} shows the missing factor: increasing candidate capacity from 64 to 8192 raises community recall from 0 to 1.00 and scanner recall from 0 to 0.95, but the 8192-candidate diffuse runs take about 23.2--25.0 seconds at 100,000 edges. In this Python implementation, streaming is slower than SciPy sparse construction, so its value is bounded-memory online processing and a clear approximation baseline, not raw speed.
+Table~\ref{tab:streaming} summarizes the streaming/sketch result at 500,000 edges. The Count-Min Sketch uses 327,680 bytes. It recovers all top-20 heavy hitters in hotspot traffic with median relative error below 0.001, but recall falls to 0.10 for community traffic and 0 for scanner and uniform regimes. A width sweep showed that increasing sketch width from 512 to 32,768 reduces hotspot median weight error from 0.0405 to 0 but does not improve diffuse-regime recall at fixed candidate capacity. Figure~\ref{fig:candidate} shows the missing factor: increasing candidate capacity from 64 to 8{,}192 raises community recall from 0 to 1.00 and scanner recall from 0 to 0.95. With the lazy-deletion heap tracker, that capacity increase costs almost nothing at run time -- the 100,000-edge sweep moves from 0.62~s at capacity 64 to 0.71--0.91~s at capacity 8{,}192 -- so candidate capacity is a memory knob, not a latency penalty, and there is little reason to starve it. In this Python implementation, streaming is still slower than SciPy sparse construction, so its value is bounded-memory online processing and a clear approximation baseline, not raw speed.
 
 \begin{table}[t]
 \centering
@@ -147,10 +145,10 @@ Table~\ref{tab:streaming} summarizes the streaming/sketch result at 500,000 edge
 \toprule
 Regime & Stream Time & Recall & Median Err. \\
 \midrule
-Hotspot & 5.31 & 1.00 & 0.0003 \\
-Community & 9.81 & 0.10 & 1.0000 \\
-Scanner & 10.23 & 0.00 & 1.0000 \\
-Uniform & 10.17 & 0.00 & 1.0000 \\
+Hotspot & 3.45 & 1.00 & 0.0003 \\
+Community & 3.24 & 0.10 & 1.0000 \\
+Scanner & 3.42 & 0.00 & 1.0000 \\
+Uniform & 3.36 & 0.00 & 1.0000 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -173,6 +171,31 @@ Uniform & 0.000 & 0.0003 & sparse & sparse \\
 \end{tabular}
 \end{table}
 
+\subsection{Official-Data Prefix Validation}
+The candidate-capacity finding and the online diagnostics were checked on real challenge data. Table~\ref{tab:real} summarizes the experiment on the 5{,}000{,}000-packet prefix of the official anonymized capture. The prefix is an extreme diffuse regime: every packet is a unique source-destination pair (duplication rate 0), there are 4{,}997{,}115 unique anonymized sources, and every packet is a 40-byte header-only record, so all edge weights are equal. On this input the early-stream selector, using only the first 50{,}000 records, recommends sparse direct construction and flags fixed-candidate sketching as unsafe; the measured construction winner is sparse direct (2.52~s versus 5.15~s for pandas groupby, about $2.0\times10^{6}$ edges per second), so the recommendation matches. The safety certificate withholds certification because the prefix top-$k$ ranking gap is exactly zero. The capacity sweep confirms the diagnosis from the other direction: top-20 recall is exactly zero at capacities 64 through 8{,}192 because, with all weights equal, exact top-$k$ membership is arbitrary tie-breaking rather than signal. Raising capacity from 64 to 8{,}192 changes the streaming pass from 33.7~s to only 35.0~s with the heap-based candidate tracker, so capacity is operationally cheap; it simply has nothing to recover here. This is the complementary case to the synthetic diffuse regimes: there, capacity rescues recall because heavy hitters exist but are hard to discover; here, the selector and certificate correctly report that sketch-based top-$k$ has no signal to recover. Distinguishing these two situations online, from a 50{,}000-record prefix, is exactly what the certificate is for.
+
+\begin{table}[t]
+\centering
+\caption{Official-capture prefix experiment (5{,}000{,}000 packets parsed from a 256~MiB byte-range request in under five seconds).}
+\label{tab:real}
+\begin{tabular}{lr}
+\toprule
+Quantity & Value \\
+\midrule
+Packets parsed & 5{,}000{,}000 \\
+Unique src-dst pairs & 5{,}000{,}000 \\
+Duplication rate & 0.0 \\
+Prefix nnz per edge & 1.0 \\
+Sparse direct construction (s) & 2.52 \\
+pandas groupby construction (s) & 5.15 \\
+Measured winner & sparse\_direct \\
+Selector recommendation & sparse\_direct (match) \\
+Certificate decision & not certified (gap $=0$) \\
+Recall@20, capacity 64--8192 & 0.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 Table~\ref{tab:reference} reports compatibility validation rather than a speed contest. The Matrix Market smoke test reloads a GraphBLAS-style sparse coordinate matrix and exactly matches the edge-table sparse matrix on shape, nonzeros, and total weight. The formula check compares our pipeline with a local implementation of GraphChallenge-paper-style sparse sensing formulas on a 100,000-edge community sample. This is not the full official GraphChallenge reference repository, but it verifies that core scalar quantities agree before performance claims are interpreted.
 
 Figure~\ref{fig:timebin} shows the time-bin anomaly experiment. In all four scenarios, the injected bin is the top-ranked bin by the robust anomaly score. The volume-burst case raises total traffic to 1.11B bytes versus a typical-bin median of 22.7M. The scanner-fanout case has top-source share 0.0469; the concentrated-destination case has top-destination share 0.1076; and the distributed low-rate scan has 16,806 nonzeros versus a typical median of 4,869. This is still synthetic, but it is closer to network sensing than a single toy spike because different features explain different event types.
@@ -191,40 +214,24 @@ Formula scalars & 100k edge & 75,952 & 648.3M & match \\
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:methodsummary} summarizes the selector output in reviewer-facing terms. It separates exact-method choice from heuristic sketch use: pandas is recommended only when early traffic is highly duplicated and concentrated, while fixed-candidate sketching is marked unsafe for diffuse regimes even when exact sparse construction remains fast.
+The selector separates exact-method choice from heuristic sketch use: pandas pre-aggregation is recommended only when early traffic is highly duplicated and concentrated, while fixed-candidate sketching is marked unsafe for all three diffuse regimes even when exact sparse construction remains fast.
+
+Table~\ref{tab:certificate} reports the stricter safety certificate from the same 50,000-record prefix under two sketch budgets. Under the default width 8{,}192 and candidate capacity 512, no regime satisfies the sufficient sketch-ranking certificate. The certificate is not a permanent refusal: raising the budget to width 16{,}384 and candidate capacity 5{,}000 (a 655~KB sketch) satisfies the combined sufficient condition for the hotspot regime with margin $+5.6\times10^{-5}$, while the diffuse regimes remain uncertified because their required widths exceed $2.4\times10^{6}$. The certificate therefore tells an operator both when sketch safety is not proven and what budget would prove it, and it correctly stays conservative where candidate discovery is the binding constraint. Applied to the official-capture prefix, the certificate also withholds certification, matching the extreme diffuse shape reported above.
 
 \begin{table}[t]
 \centering
-\caption{Method recommendation summary from the early-stream selector.}
-\label{tab:methodsummary}
-\begin{tabular}{llll}
-\toprule
-Regime & Method & Sketch use & Reason \\
-\midrule
-Hotspot & pandas & empirical & concentrated \\
-Community & sparse & unsafe & diffuse candidates \\
-Scanner & sparse & unsafe & fanout/diffuse \\
-Uniform & sparse & unsafe & nnz grows with stream \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Table~\ref{tab:certificate} reports the stricter safety certificate from the same 50,000-record prefix. No regime satisfies the sufficient sketch-ranking certificate under the current width 8192 and candidate capacity 512. This does not prove that sketches fail; it says the conservative sufficient conditions are not met.
-
-\begin{table}[t]
-\centering
-\caption{Safety certificate from a 50,000-record prefix. Width is the Count-Min width required by the sufficient gap condition.}
+\caption{Safety certificate from a 50,000-record prefix under two budgets: default (width 8{,}192, capacity 512) and tuned (width 16{,}384, capacity 5{,}000). Width$_{\min}$ is the Count-Min width required by the sufficient gap condition; the default fails on the combined-error condition for Hotspot and on Width$_{\min}$ for the diffuse regimes.}
 \label{tab:certificate}
 \scriptsize
-\setlength{\tabcolsep}{2pt}
-\begin{tabular}{llrrrll}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrll}
 \toprule
-Regime & Rec. & $p_{20}$ & $c_{\min}$ & Width & Dec. & Reason \\
+Regime & $p_{20}$ & $c_{\min}$ & Width$_{\min}$ & Default & Tuned \\
 \midrule
-Hotspot & pandas & .352 & 2 & 6.9k & no & combined \\
-Community & sparse & .011 & 89 & 2.4M & no & width \\
-Scanner & sparse & .004 & 252 & 2.5M & no & width \\
-Uniform & sparse & .004 & 279 & 24.3M & no & width \\
+Hotspot & .352 & 2 & 6.9k & no & \textbf{yes} \\
+Community & .011 & 89 & 2.4M & no & no \\
+Scanner & .004 & 252 & 2.5M & no & no \\
+Uniform & .004 & 279 & 24.3M & no & no \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -232,10 +239,10 @@ Uniform & sparse & .004 & 279 & 24.3M & no & width \\
 The current benchmark supports three conservative observations. First, all local exact construction paths produce equivalent aggregate matrices on the tested inputs, which is necessary before performance comparisons are meaningful. Second, the sparse path provides a concise implementation that naturally exposes interpretable sensing summaries without densifying the traffic matrix. Third, multi-regime, online, and time-bin results matter: a method or sketch that looks best on high-duplication hotspot traffic may not dominate when nnz approaches the edge count, early stream statistics can steer exact-method choice, and temporal bursts can be easier to explain through bin-level summaries than through a single aggregate matrix.
 
 \section{Limitations}
-This submission draft deliberately avoids overclaiming. The experiments use synthetic data and do not demonstrate full CAIDA-scale throughput. The memory measurement is process-level and should be interpreted as a coarse operational signal. The runtime benchmark excludes parsing, disk I/O, and synthetic generation; those costs should be measured separately for official PCAP workflows. The optional official-reference wrapper is included, but we did not download or benchmark multi-GB official PCAP inputs in this draft; a full same-machine comparison against the official reference workflow remains future work. Finally, the synthetic generator is designed for reproducibility and sparse-regime coverage, not as a validated traffic model.
+This submission deliberately avoids overclaiming. The experiments combine controlled synthetic regimes with a 5{,}000{,}000-packet byte-range prefix of the official anonymized capture; the prefix validates parsing, selector behavior, certificate behavior, and capacity sensitivity on real challenge data, but it is not a full $2^{30}$-packet run, and the traffic composition of a prefix may differ from the full capture. The memory measurement is process-level and should be interpreted as a coarse operational signal. The runtime benchmark excludes disk I/O and synthetic generation; the official-prefix fetch, decompression, and parse times are measured separately and recorded in the committed provenance manifest. A full same-machine comparison against the official reference workflow remains future work. Finally, the synthetic generator is designed for reproducibility and sparse-regime coverage, not as a validated traffic model.
 
 \section{Conclusion}
-We presented a shape- and time-aware, reproducible Python toolkit for anonymized network sensing with exact sparse, streaming/sketch, online selector, certified sketch checks, and time-bin analytics. The main result is not a universal speed win. It is a transparent demonstration that traffic regime changes the right method: sparse direct construction is usually faster than pandas groupby, pandas wins on highly duplicated hotspot traffic, early-stream features can recommend the observed exact-method winner on the tested regimes, sketch width reduces weight error, candidate capacity controls whether diffuse heavy hitters are even discovered, and conservative certificates can identify when sketch safety is not proven. The time-bin experiments add a complementary lesson: temporal summaries can expose burst, scanner, concentrated-destination, and distributed scan behavior in a form that is easy to inspect. These failure cases and diagnostics are part of the contribution because they make approximation risk visible to student entrants. The package therefore serves as a conservative bridge between official GraphChallenge materials and commodity-CPU experimentation with sparse matrices, sketches, temporal signals, online method choice, and interpretable network-sensing summaries.
+We presented a shape- and time-aware, reproducible Python toolkit for anonymized network sensing with exact sparse, streaming/sketch, online selector, certified sketch checks, and time-bin analytics. The central empirical result is that candidate-tracking capacity, not sketch width, bounds heavy-hitter discovery on diffuse traffic: width sweeps reduce weight error without recovering a single missed heavy hitter, while capacity sweeps move diffuse recall from zero to near one. Around this result, the toolkit demonstrates that traffic regime changes the right method: sparse direct construction is usually faster than pandas groupby, pandas wins on highly duplicated hotspot traffic, early-stream features can recommend the observed exact-method winner on the tested regimes, and conservative certificates can identify both when sketch safety is not proven and what sketch budget would prove it. These effects were confirmed on a 5{,}000{,}000-packet prefix of the official anonymized capture, where the selector and certificate correctly identify an extreme diffuse regime. The time-bin experiments add a complementary lesson: temporal summaries can expose burst, scanner, concentrated-destination, and distributed scan behavior in a form that is easy to inspect. These failure cases and diagnostics are part of the contribution because they make approximation risk visible to student entrants. The package therefore serves as a conservative bridge between official GraphChallenge materials and commodity-CPU experimentation with sparse matrices, sketches, temporal signals, online method choice, and interpretable network-sensing summaries.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
