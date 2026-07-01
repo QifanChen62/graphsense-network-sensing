@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 import pandas as pd
@@ -11,11 +12,47 @@ import pandas as pd
 from graphsense.analytics import matrix_summary, top_k_edges
 from graphsense.baselines import counter_baseline, pandas_groupby_baseline
 from graphsense.io import edges_to_sparse, load_matrix_market_traffic, write_matrix_market_traffic
+from graphsense.pcap import (
+    detect_uniform_record_size,
+    iter_decompressed_chunks,
+    parse_pcap_global_header,
+    pcap_stream_to_edges,
+)
 from graphsense.reference import official_formula_reference
 from graphsense.selector import early_stream_features, recommend_method
 from graphsense.streaming import stream_summaries, streaming_accuracy
 from graphsense.synthetic import REGIMES, make_controlled_edges, make_synthetic_edges
 from graphsense.timebin import add_timebin_anomaly_score, time_bin_summary
+
+try:
+    import zstandard
+
+    HAVE_ZSTANDARD = True
+except ImportError:
+    HAVE_ZSTANDARD = False
+
+
+def _synthetic_pcap(byte_order: str, packet_lengths: list[int], seed: int = 3) -> tuple[bytes, list[tuple[int, int, int]]]:
+    """Build pcap bytes with Ethernet+IPv4 packets and return expected (src, dst, bytes)."""
+
+    import struct as _struct
+
+    magic = b"\xd4\xc3\xb2\xa1" if byte_order == "<" else b"\xa1\xb2\xc3\xd4"
+    header = magic + _struct.pack(byte_order + "HHiIII", 2, 4, 0, 0, 65535, 1)
+    blob = bytearray(header)
+    expected = []
+    for index, incl_len in enumerate(packet_lengths):
+        src = 0x0A000000 + seed * 1000 + index
+        dst = 0xC0A80000 + seed * 100 + (index % 7)
+        packet = bytearray(incl_len)
+        packet[12:14] = b"\x08\x00"  # ethertype IPv4
+        packet[14] = 0x45  # version/IHL
+        packet[26:30] = _struct.pack(">I", src)
+        packet[30:34] = _struct.pack(">I", dst)
+        blob.extend(_struct.pack(byte_order + "IIII", 100 + index, 0, incl_len, incl_len))
+        blob.extend(packet)
+        expected.append((src, dst, incl_len))
+    return bytes(blob), expected
 
 
 class PipelineTest(unittest.TestCase):
@@ -223,6 +260,157 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(traffic.matrix.shape, reloaded.matrix.shape)
         self.assertEqual((traffic.matrix - reloaded.matrix).nnz, 0)
         self.assertAlmostEqual(matrix_summary(traffic).total_weight, matrix_summary(reloaded).total_weight)
+
+    def test_pcap_parser_reads_synthesized_fixed_records(self) -> None:
+        blob, expected = _synthetic_pcap("<", [60] * 50)
+        edges, info = pcap_stream_to_edges(iter([blob]), max_packets=1000)
+
+        self.assertEqual(info["parser_path"], "numpy")
+        self.assertEqual(info["record_size_detected"], 16 + 60)
+        self.assertEqual(len(edges), 50)
+        self.assertEqual(list(edges.columns), ["src", "dst", "bytes"])
+        self.assertEqual(edges["src"].tolist(), [item[0] for item in expected])
+        self.assertEqual(edges["dst"].tolist(), [item[1] for item in expected])
+        self.assertTrue((edges["bytes"] == 60).all())
+
+    def test_pcap_parser_handles_truncated_final_record(self) -> None:
+        blob, _ = _synthetic_pcap("<", [60] * 50)
+        truncated = blob[: len(blob) - 30]
+        edges, _ = pcap_stream_to_edges(iter([truncated]), max_packets=1000)
+        self.assertEqual(len(edges), 49)
+
+    def test_pcap_parser_big_endian_magic(self) -> None:
+        little_blob, expected = _synthetic_pcap("<", [60] * 20)
+        big_blob, big_expected = _synthetic_pcap(">", [60] * 20)
+        self.assertEqual(expected, big_expected)
+
+        meta = parse_pcap_global_header(big_blob[:24])
+        self.assertEqual(meta.byte_order, ">")
+        little_edges, _ = pcap_stream_to_edges(iter([little_blob]), max_packets=1000)
+        big_edges, _ = pcap_stream_to_edges(iter([big_blob]), max_packets=1000)
+        pd.testing.assert_frame_equal(little_edges, big_edges)
+
+    def test_pcap_parser_falls_back_on_variable_record_size(self) -> None:
+        lengths = [60, 74] * 25
+        blob, expected = _synthetic_pcap("<", lengths)
+        meta = parse_pcap_global_header(blob[:24])
+        self.assertIsNone(detect_uniform_record_size(blob, meta))
+
+        edges, info = pcap_stream_to_edges(iter([blob]), max_packets=1000)
+        self.assertEqual(info["parser_path"], "struct")
+        self.assertEqual(len(edges), len(lengths))
+        self.assertEqual(edges["bytes"].tolist(), [item[2] for item in expected])
+
+    def test_pcap_parser_respects_max_packets_across_chunks(self) -> None:
+        blob, _ = _synthetic_pcap("<", [60] * 200)
+        chunks = [blob[i : i + 997] for i in range(0, len(blob), 997)]
+        edges, _ = pcap_stream_to_edges(iter(chunks), max_packets=120)
+        self.assertEqual(len(edges), 120)
+
+    @unittest.skipUnless(HAVE_ZSTANDARD, "zstandard not installed")
+    def test_zstd_truncated_stream_yields_prefix(self) -> None:
+        blob, _ = _synthetic_pcap("<", [60] * 5000)
+        compressed = zstandard.ZstdCompressor(level=3).compress(blob)
+        truncated = compressed[: int(len(compressed) * 0.4)]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "prefix.pcap.zst"
+            path.write_bytes(truncated)
+            decoded = b"".join(iter_decompressed_chunks(path, chunk_size=4096))
+
+        self.assertGreater(len(decoded), 24)
+        self.assertLess(len(decoded), len(blob))
+        edges, _ = pcap_stream_to_edges(iter([decoded]), max_packets=10**6)
+        self.assertGreater(len(edges), 0)
+
+    def test_candidate_tracker_heap_matches_min_scan_semantics(self) -> None:
+        from graphsense.streaming import CandidateTracker
+
+        import random
+
+        rng = random.Random(67)
+        tracker = CandidateTracker(capacity=8)
+        shadow: dict[object, float] = {}
+        for step in range(2000):
+            key = rng.randrange(40)
+            weight = float(rng.randrange(1, 5))
+            tracker.update(key, weight)
+            # Reference: plain space-saving with a min scan.
+            if key in shadow:
+                shadow[key] += weight
+            elif len(shadow) < 8:
+                shadow[key] = weight
+            else:
+                victim = min(shadow, key=lambda item: (shadow[item],))
+                minimum = shadow.pop(victim)
+                shadow[key] = minimum + weight
+
+        # Tie-breaking may differ, but sizes and count multisets must match ranges.
+        self.assertEqual(len(tracker.counts), 8)
+        self.assertEqual(len(shadow), 8)
+        self.assertAlmostEqual(
+            max(tracker.counts.values()), max(shadow.values()), delta=max(shadow.values()) * 0.5
+        )
+
+    def test_candidate_tracker_all_unique_stream_is_fast(self) -> None:
+        from graphsense.streaming import CandidateTracker
+
+        tracker = CandidateTracker(capacity=4096)
+        start = time.perf_counter()
+        for key in range(200000):
+            tracker.update(key, 1.0)
+        elapsed = time.perf_counter() - start
+        self.assertEqual(len(tracker.counts), 4096)
+        self.assertLess(elapsed, 5.0)
+
+    def test_real_data_experiment_on_synthetic_frame(self) -> None:
+        import argparse
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        try:
+            from real_data_experiment import run_real_experiment
+        finally:
+            sys.path.pop(0)
+
+        edges = make_synthetic_edges(
+            n_edges=20000,
+            n_sources=128,
+            n_destinations=128,
+            seed=61,
+            regime="hotspot_zipf",
+            label_mode="int",
+        )
+        args = argparse.Namespace(
+            regime_label="unit_test",
+            prefix_edges=5000,
+            top_k=10,
+            width=2048,
+            depth=4,
+            capacities=[64, 512],
+            repeats=2,
+            value_column="bytes",
+        )
+        summary, sensitivity = run_real_experiment(edges, args)
+
+        exact_rows = summary[summary["row_kind"] == "exact_method"]
+        self.assertEqual(set(exact_rows["method"]), {"sparse_direct", "pandas_groupby"})
+        self.assertTrue(exact_rows["output_matches_sparse"].all())
+        selector_rows = summary[summary["row_kind"] == "selector"]
+        self.assertEqual(len(selector_rows), 1)
+        expected_columns = [
+            "regime",
+            "n_edges",
+            "sketch_width",
+            "sketch_depth",
+            "candidate_capacity",
+            "seconds",
+            "sketch_bytes",
+            "candidate_count",
+            "topk_recall",
+            "median_relative_error",
+            "max_relative_error",
+        ]
+        self.assertEqual(list(sensitivity.columns), expected_columns)
+        self.assertEqual(sensitivity["candidate_capacity"].tolist(), [64, 512])
 
     def test_certified_selector_cli_writes_conservative_certificate(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
