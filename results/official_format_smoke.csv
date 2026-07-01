@@ -1,0 +1,3 @@
+check,input,format,official_data_used,n_edges,n_sources,n_destinations,nnz,density,total_weight,matches_edge_table_sparse
+edge_table_sparse,synthetic_edge_table,src_dst_weight_records,False,10000,256,256,4747,0.0724334716796875,66079548.0,True
+matrix_market_reload,data/official_format/tiny_traffic_matrix.mtx,graphblas_style_sparse_coordinate_matrix,False,10000,256,256,4747,0.0724334716796875,66079548.0,True

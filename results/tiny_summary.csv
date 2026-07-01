@@ -1,0 +1,2 @@
+n_sources,n_destinations,nnz,density,total_weight,row_entropy_bits,column_entropy_bits,edge_entropy_bits,top_singular_value,gini_edge_weight
+337,322,1696,0.015629319719114583,18602119.0,4.635519281152533,4.783936236014977,8.340998727359404,2405252.661505634,0.7596113709494956

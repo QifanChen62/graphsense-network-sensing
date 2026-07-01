@@ -1,0 +1,62 @@
+PYTHON ?= python3
+MPLCONFIGDIR ?= /tmp/graphsense-mpl
+PYTHONPYCACHEPREFIX ?= /tmp/graphsense-pycache
+
+.PHONY: setup-check sample benchmark streaming-benchmark streaming-sensitivity candidate-sensitivity timebin-anomaly method-selector certified-selector official-format-smoke large-benchmark reference figures large-figures streaming-figures smoke test clean
+
+setup-check:
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/setup_check.py
+
+sample:
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/download_sample_data.py --output data/sample/tiny_edges.csv --n-edges 5000
+
+benchmark: sample
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/benchmark.py --output results/benchmark_summary.csv --sizes 5000 25000 100000 --regimes hotspot_zipf community_bursty scanner_fanout uniform_sparse --repeats 3
+
+large-benchmark:
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/benchmark.py --output results/benchmark_large_summary.csv --sizes 1000000 5000000 --regimes hotspot_zipf community_bursty scanner_fanout uniform_sparse --methods sparse_direct pandas_groupby --repeats 1
+
+streaming-benchmark:
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/benchmark_streaming.py --output results/streaming_benchmark.csv --sizes 25000 100000 500000 --regimes hotspot_zipf community_bursty scanner_fanout uniform_sparse
+
+streaming-sensitivity:
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/benchmark_streaming_sensitivity.py --output results/streaming_sensitivity.csv --n-edges 100000 --regimes hotspot_zipf community_bursty scanner_fanout uniform_sparse --widths 512 2048 8192 32768
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/make_streaming_sensitivity_figure.py --input results/streaming_sensitivity.csv --outdir figures
+
+candidate-sensitivity:
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/benchmark_candidate_sensitivity.py --output results/candidate_sensitivity.csv --n-edges 100000 --regimes hotspot_zipf community_bursty scanner_fanout uniform_sparse --capacities 64 128 512 2048 8192
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/make_candidate_sensitivity_figure.py --input results/candidate_sensitivity.csv --outdir figures
+
+timebin-anomaly:
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/timebin_anomaly.py --output results/timebin_anomaly_summary.csv --figure figures/timebin_anomaly.png
+
+method-selector:
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/method_selector.py --output results/method_selector_summary.csv --benchmark-csv results/benchmark_large_summary.csv --n-edges 5000000 --prefix-edges 50000 --materialize-full-stream
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/make_method_selector_figure.py --input results/method_selector_summary.csv --outdir figures
+
+certified-selector:
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/certified_selector.py --output results_v1/certified_selector_summary.csv --n-edges 5000000 --prefix-edges 50000 --top-k 20 --regimes hotspot_zipf community_bursty scanner_fanout uniform_sparse
+
+official-format-smoke:
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/official_format_smoke.py --matrix-output data/official_format/tiny_traffic_matrix.mtx --summary-output results/official_format_smoke.csv
+
+reference:
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/compare_reference.py --output results/reference_comparison.csv --n-edges 100000 --regime community_bursty
+
+figures: benchmark reference
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/make_figures.py --input results/benchmark_summary.csv --outdir figures
+
+large-figures: large-benchmark
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/make_figures.py --input results/benchmark_large_summary.csv --outdir figures
+
+streaming-figures: streaming-benchmark streaming-sensitivity candidate-sensitivity
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/make_streaming_figures.py --input results/streaming_benchmark.csv --outdir figures
+
+smoke: setup-check sample
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/run_ours.py --input data/sample/tiny_edges.csv --out-prefix results/tiny
+
+test:
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) -m unittest discover -s tests
+
+clean:
+	rm -f data/sample/*.csv data/synthetic/*.csv results/*.csv results/*.json figures/*.png figures/*.pdf

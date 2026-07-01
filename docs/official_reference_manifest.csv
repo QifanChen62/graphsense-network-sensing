@@ -1,0 +1,8 @@
+item,type,url,local_status,notes
+GraphChallenge challenge page,official_page,https://graphchallenge.mit.edu/challenges,referenced,Anonymized Network Sensing challenge listing.
+GraphChallenge data sets page,official_page,https://graphchallenge.mit.edu/data-sets,referenced,Lists Anonymized Network Sensing data resources including PCAP/GraphBLAS/CAIDA paths.
+GraphChallenge submit page,official_page,https://graphchallenge.mit.edu/submit,referenced,Paper submission rules and deadline context.
+Anonymized Network Sensing paper,official_paper,https://arxiv.org/abs/2409.08115,referenced,Defines sparse traffic-matrix sensing quantities and reference-style computations.
+Local paper-formula reference,local_reference,../scripts/compare_reference.py,run,Produces results/reference_comparison.csv for a small reproducible sample.
+Official-format smoke test,local_compatibility,../scripts/official_format_smoke.py,run,Produces results/official_format_smoke.csv and a tiny Matrix Market sparse-coordinate file for format compatibility validation.
+Optional official checkout wrapper,local_wrapper,../scripts/run_reference.py,available,Use when a full official reference checkout and compatible sample are available.

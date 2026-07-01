@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+.DS_Store
+tmp/
+
+# Generated data and outputs. Keep directories via .gitkeep files.
+data/raw/
+data/external/
+data/synthetic/*.csv
+
+# Official-data prefix artifacts: the fetch script + committed manifest reproduce these.
+data/real/*.csv
+data/real/*.part
+
+# LaTeX build products
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.log
+paper/*.out
+paper/*.synctex.gz

@@ -1,0 +1,3 @@
+implementation,source,regime,n_edges,seconds,n_sources,n_destinations,nnz,total_weight,density,extra_reference_similarity,source_similarity_nnz,destination_similarity_nnz
+ours_sparse_pipeline,this_repo_scipy_sparse,community_bursty,100000,0.015243000000000007,2048,2048,75952,648329309.0,0.018108367919921875,False,,
+official_formula_reference,graphchallenge_paper_table_i_style,community_bursty,100000,0.025909249999999995,2048,2048,75952,648329309.0,0.018108367919921875,True,847078.0,848374.0
