@@ -1,0 +1,5 @@
+regime,n_edges,sketch_width,sketch_depth,candidate_capacity,seconds,sketch_bytes,candidate_count,topk_recall,median_relative_error,max_relative_error
+official_prefix,5000000,8192,5,64,33.73106475,327680,64,0.0,1.0,1.0
+official_prefix,5000000,8192,5,512,34.214549333,327680,512,0.0,1.0,1.0
+official_prefix,5000000,8192,5,2048,35.03764674999999,327680,2048,0.0,1.0,1.0
+official_prefix,5000000,8192,5,8192,35.00735608400001,327680,8192,0.0,1.0,1.0
