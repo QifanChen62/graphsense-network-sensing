@@ -50,4 +50,4 @@
 - [x] Audit the repo for huge raw data, PCAPs, credentials, and unintended machine-local paths. (No tracked file over 5 MB; the 256 MiB `.part` cache and parsed CSV are gitignored; v0_stable LaTeX build logs untracked.)
 - [ ] Confirm bibliography formatting and final submission metadata.
 - [ ] Final PDF read-through before upload.
-- [ ] Replace the `USERNAME` placeholder in the paper's Artifact Availability URL (paper/main.tex) with the real public repository URL, then recompile.
+- [x] Replace the `USERNAME` placeholder in the paper's Artifact Availability URL (paper/main.tex) with the real public repository URL, then recompile: https://github.com/QifanChen62/graphsense-network-sensing
