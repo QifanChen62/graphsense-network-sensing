@@ -45,9 +45,7 @@ The streaming path processes edge records sequentially with exact strength summa
 
 As a toolkit capability, the time-bin path groups the same edge records by a supplied \texttt{time\_bin} field, computes per-bin volume, nonzeros, entropy, Gini, and top-share statistics, and scores bins with a robust positive-deviation summary; temporal aggregation can expose burst, scan, or concentration patterns that disappear in a single summed matrix.
 
-Finally, the online selector uses only an early stream prefix to compute duplication rate, estimated nonzero growth, source and destination entropy, edge Gini, top-edge share, and top source/destination concentration. It applies the rule table below and is meant to make traffic-shape dependence visible, not to replace profiling.
-
-\noindent\textbf{Early-stream selector.} From a prefix it computes duplication rate, nnz growth, edge Gini, and top shares, recommending pandas pre-aggregation when the prefix is concentrated and sparse direct construction otherwise, with fixed-candidate sketching marked unsafe for diffuse prefixes. Its thresholds are empirical and chosen only to separate the synthetic regimes here; Section~\ref{sec:results} reports a real-traffic miss, which is why the certification layer, not this heuristic, is the primary contribution.
+Finally, the online early-stream selector uses only a stream prefix to compute duplication rate, estimated nonzero growth, source and destination entropy, edge Gini, and top-share concentration, recommending pandas pre-aggregation when the prefix is concentrated and sparse direct construction otherwise, with fixed-candidate sketching marked unsafe for diffuse prefixes. Its thresholds are empirical and chosen only to separate the synthetic regimes used here; Section~\ref{sec:results} reports a real-traffic miss, which is why the certification layer, not this heuristic, is the primary contribution.
 
 \section{Conservative Screening Conditions}
 \label{sec:screen}
@@ -66,10 +64,10 @@ I_k \;=\; \frac{\Delta_k}{2\,(\epsilon W + W/(c+1))},
 \end{equation}
 so that $I_k \geq 1$ is exactly the combined screen condition. Because $w_k \geq \Delta_k$ always, $I_k\geq 1$ implies the retention condition as well, so one number decides the certificate. Section~\ref{sec:results} tests the decoder-independence prediction directly by comparing SpaceSaving tracking against dyadic Count-Min tree descent~\cite{cormode2005countmin}. The dyadic decoder treats the key space as a binary tree: it maintains one Count-Min sketch per prefix length, queries estimates for dyadic intervals level by level, expands only the highest-mass intervals, and continues until reaching individual keys. Unlike SpaceSaving it stores no per-record candidates; its discovery budget is the number of interval expansions per level. It therefore provides an independent decoder family for testing whether diffuse-regime failure is an artifact of candidate tracking or intrinsic to the signal.
 
-\subsection{Conformal Identifiability Certificates}
-The plug-in screen above trusts one prefix (A1). We remove that assumption with conformal prediction~\cite{vovk2005algorithmic}: split the stream into disjoint equal windows, treat them as exchangeable, and score each by its gap share $S_i=\Delta_k^{(i)}/W^{(i)}$. With $m$ calibration windows and $r=\lfloor\alpha(m{+}1)\rfloor\geq 1$, let $L$ be the $r$th smallest calibration score; the order-statistic argument gives $\Pr[S_{\mathrm{future}} < L] \leq \alpha$.
+\subsection{Conformal Identifiability Screens}
+The plug-in screen above trusts one prefix (A1). We remove that assumption with conformal prediction~\cite{vovk2005algorithmic}: split the stream into disjoint equal windows, treat them as exchangeable, and score each by its gap share $S_i=\Delta_k^{(i)}/W^{(i)}$. With $n$ calibration windows and $r=\lfloor\alpha(n{+}1)\rfloor\geq 1$, let $L$ be the $r$th smallest calibration score; the order-statistic argument gives $\Pr[S_{\mathrm{future}} < L] \leq \alpha$.
 
-\noindent\emph{Proposition 1 (window-level identifiability screen).} Assume the calibration and future window scores are exchangeable, and condition on the Count-Min per-query error event of (A2). If $L > 2(\epsilon + 1/(c{+}1))$, then with probability at least $1-\alpha$ over the future window, its true top-$k$ pairs are all retained by the tracker and correctly separated from non-top-$k$ pairs under the budget $(m,d,c)$. \emph{Proof sketch:} on the event $S_{\mathrm{future}}\geq L$, the combined sufficient condition of the previous subsection holds for that window. This guarantee is marginal over future windows; it does not imply conditional validity for every traffic regime or time period.
+\noindent\emph{Proposition 1 (window-level identifiability screen).} Assume the calibration and future window scores are exchangeable, and condition on the Count-Min per-query error event of (A2). If $L > 2(\epsilon + 1/(c{+}1))$, then with probability at least $1-\alpha$ over the future window, its true top-$k$ pairs are all retained by the tracker and correctly separated from non-top-$k$ pairs under the budget (width $m$, depth $d$, capacity $c$). \emph{Proof sketch:} on the event $S_{\mathrm{future}}\geq L$, the combined sufficient condition of the previous subsection holds for that window. When rankings are read from tracker counts, the separation argument is deterministic given retention, since SpaceSaving errors are one-sided and bounded by $W/(c{+}1)$ without randomness; ranking by Count-Min estimates instead pays an additional failure probability of at most $e^{-d}$ per queried candidate, handled by a union bound and driven down geometrically in the depth $d$. The guarantee is marginal over future windows; it does not imply conditional validity for every traffic regime or time period.
 
 The screen is distribution-free over windows and prices the removal of A1 in memory. Because drift breaks exchangeability, we also run adaptive conformal inference~\cite{gibbs2021adaptive}, which adjusts $\alpha_t$ online; its long-run tracking is empirical, not a finite-sample guarantee. Unlike conformal frequency estimation over sketches~\cite{sesia2022conformal}, which calibrates per-query frequency intervals, the conformalized object here is the \emph{identifiability decision itself}.
 
@@ -97,7 +95,7 @@ All numbers and figures in this section were generated on the machine described 
 \label{fig:candidate}
 \end{figure}
 
-Table~\ref{tab:large} reports the 5,000,000-edge large benchmark. The regimes differ substantially: hotspot traffic has 222,097 nonzeros and high concentration, while uniform sparse traffic has 4,997,173 nonzeros and density 0.0011. Sparse direct construction is faster than pandas groupby in community, scanner, and uniform regimes. In the hotspot regime, pandas groupby is faster on this machine, which is a useful negative result: the best construction path depends on traffic shape and duplication rate. Throughput scales nearly linearly from 1,000,000 to 5,000,000 edges (sparse direct moves from 14.1--32.7 to 13.3--35.2 million edges per second across regimes), so the reported rates are not a small-input artifact. The table reports total measured construction plus analytics time and throughput for in-memory edge tables.
+Table~\ref{tab:large} reports the 5,000,000-edge large benchmark. The regimes differ substantially: hotspot traffic has 222,097 nonzeros and high concentration, while uniform sparse traffic has 4,997,173 nonzeros and density 0.0011. Sparse direct construction is faster than pandas groupby in community, scanner, and uniform regimes. In the hotspot regime, pandas groupby is faster on this machine, which is a useful negative result: the best construction path depends on traffic shape and duplication rate. Throughput scales nearly linearly from 1,000,000 to 5,000,000 edges (sparse direct stays at roughly 13--35 million edges per second across regimes at both sizes), so the reported rates are not a small-input artifact. The table reports total measured construction plus analytics time and throughput for in-memory edge tables.
 
 \begin{table}[t]
 \centering
@@ -117,7 +115,27 @@ Uniform & 0.999 & 0.366 & 13.7 & 1.206 & 4.1 \\
 
 The streaming/sketch result at 500,000 edges (327,680-byte Count-Min, capacity 512, 3.2--3.5~s per stream): top-20 recall is 1.00 on hotspot with median relative error 0.0003, but 0.10 on community and 0 on scanner and uniform. A width sweep from 512 to 32,768 reduces hotspot median weight error from 0.0405 to 0 yet does not recover a single missed diffuse heavy hitter at fixed candidate capacity. Figure~\ref{fig:candidate} shows the missing factor: raising candidate capacity from 64 to 8{,}192 lifts community recall from 0 to 1.00 and scanner recall from 0 to 0.95. With the lazy-deletion heap tracker this costs almost nothing at run time (0.62~s to 0.71--0.91~s at 100,000 edges), so capacity is a memory knob, not a latency penalty. In this Python implementation streaming remains slower than SciPy sparse construction; its value is bounded-memory online processing, not raw speed.
 
-The online method-selector experiment: from only the first 50,000 records the selector matches the saved 5,000,000-edge exact-method winner in all four synthetic regimes (pandas for the high-duplication hotspot, sparse direct for the three near-unit-growth regimes; per-regime features are in the repository CSVs). It is an online decision rule with visible failure boundaries -- but it misses on real traffic below, which is why certification, not the heuristic, is the primary contribution.
+The online method-selector experiment: from only the first 50,000 records the selector matches the saved 5,000,000-edge exact-method winner in all four synthetic regimes (pandas for the high-duplication hotspot, sparse direct for the three near-unit-growth regimes; per-regime features are in the repository CSVs), and it marks fixed-candidate sketching unsafe for all three diffuse regimes even where exact construction remains fast. It is an online decision rule with visible failure boundaries -- but it misses on real traffic below, which is why certification, not the heuristic, is the primary contribution.
+
+Table~\ref{tab:certificate} reports the plug-in safety screen of Section~\ref{sec:screen} from the same 50,000-record prefix under two sketch budgets. Under the default width 8{,}192 and candidate capacity 512, no regime satisfies the sufficient conditions. The screen is not a permanent refusal: raising the budget to width 16{,}384 and candidate capacity 5{,}000 (a 655~KB sketch) satisfies the combined condition for the hotspot regime with margin $+5.6\times10^{-5}$, while the diffuse regimes remain uncertified. Notably, the rigorous retention bound predicts the capacity scale that the empirical sweep independently confirms: the screen computes $c_{\min}\approx 2{,}000$ for the community regime, where measured recall reaches 0.65 at capacity 2{,}048 and 1.00 at 8{,}192, and $c_{\min}\approx 5{,}800$ for the scanner regime, where recall reaches 0.95 only at 8{,}192. The screen therefore tells an operator both when sketch safety is not proven and what budget would prove it -- under Assumption A1, which the conformal analysis below revisits.
+
+\begin{table}[t]
+\centering
+\caption{Plug-in safety screen from a 50,000-record prefix under two budgets: default (width 8{,}192, capacity 512) and tuned (width 16{,}384, capacity 5{,}000). Top-20 is the cumulative share of the twenty heaviest pairs; $w_{20}/W$ is the share of the 20th pair alone; $c_{\min}=\lceil W/w_{20}\rceil-1$ is the SpaceSaving retention bound; Width$_{\min}$ is the Count-Min width required by the gap condition.}
+\label{tab:certificate}
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{lrrrrll}
+\toprule
+Regime & Top-20 & $w_{20}/W$ & $c_{\min}$ & Width$_{\min}$ & Def. & Tuned \\
+\midrule
+Hotspot & .352 & .0058 & 173 & 6.9k & no & \textbf{yes} \\
+Community & .011 & .00050 & 1{,}990 & 2.4M & no & no \\
+Scanner & .004 & .00017 & 5{,}839 & 2.5M & no & no \\
+Uniform & .004 & .00015 & 6{,}654 & 24.3M & no & no \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Official-Dataset Validation}
 The candidate-capacity finding and the online diagnostics were checked on the official challenge data products. Table~\ref{tab:real} summarizes the experiment on the 5{,}000{,}000-packet prefix of the official Random PCAP -- an extreme diffuse regime: every packet is a unique pair (duplication 0), 4{,}997{,}115 unique anonymized sources, and every packet a 40-byte header-only record, so all weights are equal, consistent with the organizers' randomized generation. From the first 50{,}000 records the selector recommends sparse direct construction and flags fixed-candidate sketching as unsafe; the measured end-to-end winner (including label factorization) is sparse direct (2.52~s versus 5.15~s pandas), so the recommendation matches. The safety screen withholds certification because the prefix top-$k$ ranking gap is exactly zero. The capacity sweep confirms the diagnosis from the other direction: strict-identity top-20 recall is exactly zero at capacities 64 through 8{,}192, while tie-aware recall (any equal-weight candidate matches) is trivially 1.0 -- the divergence between the two definitions is itself the diagnosis: top-$k$ \emph{identity} carries no information in an all-tie regime. This is the complementary case to the synthetic diffuse regimes: there, capacity rescues recall because heavy hitters exist but are hard to discover; here, the screen correctly reports that sketch-based top-$k$ is ill-posed. Extending the fetch to 2~GiB (40{,}000{,}000 packets) and repeating the analysis on eight disjoint 5{,}000{,}000-packet segments yields identical diagnoses on all eight, so this is not an artifact of the first window.
@@ -126,7 +144,7 @@ Two further checks tie the toolkit to the official GraphBLAS ecosystem. First, a
 
 \begin{table}[t]
 \centering
-\caption{Official Random PCAP prefix experiment (5{,}000{,}000 packets parsed from a 256~MiB byte-range request in under five seconds).}
+\caption{Official Random PCAP prefix experiment (5{,}000{,}000 packets parsed from a 256~MiB byte-range request in under five seconds; construction times are the minimum of three repeats).}
 \label{tab:real}
 \begin{tabular}{lr}
 \toprule
@@ -190,30 +208,6 @@ Official \texttt{.grb} & $2^{23}$ pkt & 8.39M & 8.39M & 64/64 exact \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-The selector separates exact-method choice from heuristic sketch use: pandas pre-aggregation is recommended only when early traffic is highly duplicated and concentrated, while fixed-candidate sketching is marked unsafe for all three diffuse regimes even when exact sparse construction remains fast.
-
-Table~\ref{tab:certificate} reports the safety screen of Section~\ref{sec:screen} from the same 50,000-record prefix under two sketch budgets. Under the default width 8{,}192 and candidate capacity 512, no regime satisfies the sufficient conditions. The screen is not a permanent refusal: raising the budget to width 16{,}384 and candidate capacity 5{,}000 (a 655~KB sketch) satisfies the combined condition for the hotspot regime with margin $+5.6\times10^{-5}$, while the diffuse regimes remain uncertified. Notably, the rigorous retention bound now predicts the capacity scale that the empirical sweep independently confirms: the screen computes $c_{\min}\approx 2{,}000$ for the community regime, where measured recall reaches 0.65 at capacity 2{,}048 and 1.00 at 8{,}192, and $c_{\min}\approx 5{,}800$ for the scanner regime, where recall reaches 0.95 only at 8{,}192. The screen therefore tells an operator both when sketch safety is not proven and what budget would prove it. Applied to the official-capture prefix, it withholds certification because the ranking gap is zero, matching the all-tie shape reported above.
-
-\begin{table}[t]
-\centering
-\caption{Safety screen from a 50,000-record prefix under two budgets: default (width 8{,}192, capacity 512) and tuned (width 16{,}384, capacity 5{,}000). Top-20 is the cumulative share of the twenty heaviest pairs; $w_{20}/W$ is the share of the 20th pair alone; $c_{\min}=\lceil W/w_{20}\rceil-1$ is the SpaceSaving retention bound; Width$_{\min}$ is the Count-Min width required by the gap condition.}
-\label{tab:certificate}
-\scriptsize
-\setlength{\tabcolsep}{2pt}
-\begin{tabular}{lrrrrll}
-\toprule
-Regime & Top-20 & $w_{20}/W$ & $c_{\min}$ & Width$_{\min}$ & Def. & Tuned \\
-\midrule
-Hotspot & .352 & .0058 & 173 & 6.9k & no & \textbf{yes} \\
-Community & .011 & .00050 & 1{,}990 & 2.4M & no & no \\
-Scanner & .004 & .00017 & 5{,}839 & 2.5M & no & no \\
-Uniform & .004 & .00015 & 6{,}654 & 24.3M & no & no \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Throughout, all exact construction paths are checked to produce equivalent aggregate matrices before any performance comparison is made.
 
 \section{Limitations}
 This submission deliberately avoids overclaiming. The official-data experiments use byte-range prefixes (up to 40{,}000{,}000 packets), not a full $2^{30}$-packet run; prefix composition may differ from the full product (the eight-segment check mitigates, not eliminates, this); and the Random products are organizer-generated synthetic traffic -- the CAIDA-telescope variant is access-controlled and unused, so no claim is made about real telescope traffic. The conformal screens provide marginal, not conditional, coverage; validity rests on window exchangeability, which drift violates -- fixed calibration then under-covers, adaptive conformal inference empirically restores target miscoverage in the tested settings but trades the finite-sample guarantee for asymptotic tracking; and with 50--100 windows per stream, levels below $\alpha\approx0.02$ are unresolvable. The real-traffic evidence is one CTU-13 scenario. Memory measurements are process-level; runtimes exclude disk I/O and synthetic generation (fetch and parse times are in the committed manifest). A same-machine comparison against the official reference workflow remains future work, and the synthetic generator is a reproducibility tool, not a validated traffic model.
