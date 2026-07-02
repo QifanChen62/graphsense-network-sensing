@@ -24,6 +24,11 @@
 - [x] Real-data experiment validates the early-stream selector against the measured exact-method winner and sweeps candidate capacity on the official prefix (`results/real_data_summary.csv`, `results/real_data_candidate_sensitivity.csv`).
 - [x] Certified selector positive case: width 16,384 and candidate capacity 5,000 certify the hotspot regime (`results_v1/certified_selector_tuned_summary.csv`); diffuse regimes and the official prefix remain correctly uncertified.
 - [x] Candidate tracker eviction uses a lazy-deletion heap so all-unique streams cost O(log capacity) per record.
+- [x] Segment stability: eight disjoint 5,000,000-packet official-product segments all yield the same selector recommendation and screen refusal (`results/real_data_window_stability.csv`).
+- [x] Exact cross-validation against official GraphBLAS matrices: 64/64 windows, 8,388,608 pairs (`results/grb_cross_validation.csv`).
+- [x] SuiteSparse:GraphBLAS construction baseline including native 2^32 hypersparse mode (`results/graphblas_comparison.csv`).
+- [x] Safety-screen c_min uses the rigorous SpaceSaving retention bound (W/w_k), which quantitatively predicts the empirical capacity sweep.
+- [x] Paper language audited: S3 products named as the official synthetic Random PCAP / Random GraphBLAS variants; no real-telescope-traffic claim.
 - [x] Literature and discussion review saved in `docs/literature_and_discussion_review.md`.
 - [x] IEEE/HPEC-style paper draft under six pages.
 - [x] Paper compiles to a PDF under the six-page limit with the current draft content.
@@ -34,7 +39,7 @@
 
 - [ ] Run the full official GraphChallenge reference code on the same small input if a reference checkout and compatible input path are available.
 - [x] Replace or supplement synthetic benchmarks with a small official/example data slice if access is available. (Done via the 256 MiB byte-range prefix of the official capture.)
-- [ ] Add a true official-reference comparison table only after actually running the official reference implementation.
+- [x] Add a true official-reference comparison at the artifact level: exact match against the official GraphBLAS matrices (64/64 windows). Running the official reference *code* on the same machine remains future work and is labeled as such in the paper.
 
 ## Must Do Before Upload
 

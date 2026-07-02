@@ -1,0 +1,9 @@
+window,start_edge,window_edges,unique_pairs,duplication_rate,nnz_growth_rate,edge_gini,top_edge_share,recommended_exact_method,topk_gap_share,screen_decision
+0,0,5000000,5000000,0.0,1.0,0.0,2e-05,sparse_direct,0.0,not_certified
+1,5000000,5000000,5000000,0.0,1.0,0.0,2e-05,sparse_direct,0.0,not_certified
+2,10000000,5000000,5000000,0.0,1.0,0.0,2e-05,sparse_direct,0.0,not_certified
+3,15000000,5000000,5000000,0.0,1.0,0.0,2e-05,sparse_direct,0.0,not_certified
+4,20000000,5000000,5000000,0.0,1.0,0.0,2e-05,sparse_direct,0.0,not_certified
+5,25000000,5000000,5000000,0.0,1.0,0.0,2e-05,sparse_direct,0.0,not_certified
+6,30000000,5000000,5000000,0.0,1.0,0.0,2e-05,sparse_direct,0.0,not_certified
+7,35000000,5000000,5000000,0.0,1.0,0.0,2e-05,sparse_direct,0.0,not_certified

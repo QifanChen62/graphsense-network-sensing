@@ -1,0 +1,2 @@
+input,n_edges,nnz,factorize_seconds,scipy_csr_seconds,graphblas_from_coo_seconds,graphblas_native_2e32_seconds,outputs_match,graphblas_backend
+data/real/official_prefix_edges.csv,5000000,5000000,2.123457791,0.10637824999999967,0.088448042,0.08578783300000037,True,suitesparse

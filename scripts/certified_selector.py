@@ -67,10 +67,13 @@ def _certificate(prefix: pd.DataFrame, args: argparse.Namespace) -> dict[str, ob
         kth_weight = float(grouped.iloc[args.top_k - 1])
         topk_gap_share = kth_weight / total_weight
     else:
+        kth_weight = 0.0
         topk_gap_share = 0.0
 
-    if p_k > 0:
-        c_min = max(0, int(math.ceil(1.0 / p_k) - 1))
+    # SpaceSaving retention bound: every key with true weight above W/(c+1) is
+    # tracked, so c >= W/w_k - 1 guarantees all true top-k pairs are candidates.
+    if kth_weight > 0:
+        c_min = max(0, int(math.ceil(total_weight / kth_weight) - 1))
     else:
         c_min = math.inf
 
