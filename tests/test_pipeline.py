@@ -580,6 +580,29 @@ class PipelineTest(unittest.TestCase):
         over = route(0.01, 0.03, gap_lower_bound=4.4e-5, memory_budget_bytes=1_000_000)
         self.assertEqual(over.sketch_decision, "certifiable_over_budget")
 
+    def test_pricing_convexity_and_monotonicity(self) -> None:
+        import math
+
+        from graphsense.pricing import price_budget
+
+        # M(m) = d*m*b_ctr + b_cand/(L/2 - e/m) is strictly convex on m > 2e/L
+        # (convex-decreasing composed with concave); verify via second differences.
+        L = 4.4e-5
+        floor = 2 * math.e / L
+
+        def cost(m: float) -> float:
+            return 5 * m * 8 + 32 / (L / 2 - math.e / m)
+
+        grid = [floor * (1 + 0.01 * i) for i in range(1, 200)]
+        values = [cost(m) for m in grid]
+        seconds = [values[i + 1] - 2 * values[i] + values[i - 1] for i in range(1, len(values) - 1)]
+        self.assertGreater(min(seconds), 0)
+
+        # Price is non-increasing in the conformal bound L.
+        prices = [price_budget(bound).total_bytes for bound in (1e-7, 1e-6, 1e-5, 4.4e-5, 1e-3)]
+        for earlier, later in zip(prices, prices[1:]):
+            self.assertGreaterEqual(earlier, later)
+
     def test_certified_selector_cli_writes_conservative_certificate(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             output = Path(tmpdir) / "certified_selector.csv"

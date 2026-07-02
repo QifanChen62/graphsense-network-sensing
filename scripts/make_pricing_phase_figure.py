@@ -158,10 +158,17 @@ def main() -> None:
     left.axhline(1.0, color="black", linestyle="--", linewidth=0.8)
     left.set_xscale("log")
     left.set_yscale("log")
+    ymin, ymax = I_K_FLOOR / 12, 3e3
+    left.set_ylim(ymin, ymax)
+    left.axhspan(1.0, ymax, color="green", alpha=0.07)
+    left.axhspan(ymin, 1.0, color="red", alpha=0.05)
+    left.text(0.13, 1.5e2, "certified", fontsize=7, color="darkgreen")
+    left.text(0.13, 2e-2, "not certified", fontsize=7, color="darkred")
+    left.text(0.13, 2.2e-5, "impossible ($L=0$)", fontsize=6, color="darkred")
     left.set_xlabel("total sketch memory (MB)")
     left.set_ylabel("best achievable $I_k$ at $\\alpha=0.1$")
     left.set_title("(a) conformal budget frontier")
-    left.legend(fontsize=6, loc="upper left")
+    left.legend(fontsize=6, loc="lower right")
 
     markers = {"spacesaving": "o", "dyadic": "^"}
     for decoder, marker in markers.items():
