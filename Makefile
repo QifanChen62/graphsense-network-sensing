@@ -2,7 +2,7 @@ PYTHON ?= python3
 MPLCONFIGDIR ?= /tmp/graphsense-mpl
 PYTHONPYCACHEPREFIX ?= /tmp/graphsense-pycache
 
-.PHONY: setup-check sample benchmark streaming-benchmark streaming-sensitivity candidate-sensitivity timebin-anomaly method-selector certified-selector certified-positive official-format-smoke large-benchmark reference fetch-official-prefix real-data window-stability conformal-certificate dyadic-comparison figures large-figures streaming-figures paper-numbers smoke test clean
+.PHONY: setup-check sample benchmark streaming-benchmark streaming-sensitivity candidate-sensitivity timebin-anomaly method-selector certified-selector certified-positive official-format-smoke large-benchmark reference fetch-official-prefix real-data window-stability conformal-certificate dyadic-comparison budget-pricing identifiable-recall figures large-figures streaming-figures paper-numbers smoke test clean
 
 setup-check:
 	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/setup_check.py
@@ -57,6 +57,14 @@ conformal-certificate:
 
 dyadic-comparison:
 	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/benchmark_dyadic.py --inputs data/real/ctu13_edges.csv data/real/official_prefix_edges.csv
+
+budget-pricing:
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/conformal_budget_pricing.py
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/measure_priced_budgets.py
+	MPLCONFIGDIR=$(MPLCONFIGDIR) PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/make_pricing_phase_figure.py
+
+identifiable-recall:
+	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/identifiable_recall.py
 
 official-format-smoke:
 	PYTHONPYCACHEPREFIX=$(PYTHONPYCACHEPREFIX) $(PYTHON) scripts/official_format_smoke.py --matrix-output data/official_format/tiny_traffic_matrix.mtx --summary-output results/official_format_smoke.csv

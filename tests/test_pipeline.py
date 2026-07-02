@@ -505,6 +505,59 @@ class PipelineTest(unittest.TestCase):
             self.assertEqual(int(keys[i]) >> dst_bits, src)
             self.assertEqual(int(keys[i]) & ((1 << dst_bits) - 1), dst)
 
+    def test_budget_pricing_minimizes_and_certifies(self) -> None:
+        from graphsense.pricing import capacity_for_width, certification_margin, price_budget
+
+        price = price_budget(gap_lower_bound=4.4e-5, alpha=0.1, depth=5)
+        self.assertTrue(price.feasible)
+        self.assertGreater(price.margin, 0)
+        # The optimum must beat the hand-picked budget from the paper.
+        hand_total = 5 * 262144 * 8 + 98304 * 32
+        self.assertLess(price.total_bytes, hand_total)
+        # Closed-form capacity is consistent with the margin condition.
+        cap = capacity_for_width(4.4e-5, price.width)
+        self.assertIsNotNone(cap)
+        self.assertGreaterEqual(price.capacity, cap)
+        self.assertGreater(certification_margin(4.4e-5, price.width, price.capacity), 0)
+
+    def test_budget_pricing_reports_infeasible_for_zero_gap(self) -> None:
+        from graphsense.pricing import price_budget
+
+        price = price_budget(gap_lower_bound=0.0)
+        self.assertFalse(price.feasible)
+
+    def test_best_index_at_memory_crosses_one_at_price(self) -> None:
+        from graphsense.pricing import best_index_at_memory, price_budget
+
+        L = 3.1e-5
+        price = price_budget(L)
+        self.assertGreaterEqual(best_index_at_memory(L, price.total_bytes * 2), 1.0)
+        self.assertLess(best_index_at_memory(L, price.total_bytes // 8), 1.0)
+
+    def test_identifiability_report_all_tie_is_not_identifiable(self) -> None:
+        from graphsense.metrics import identifiability_report
+
+        edges = pd.DataFrame({"src": range(100), "dst": range(100, 200), "bytes": [40] * 100})
+        approx = pd.DataFrame({"src": range(20), "dst": range(100, 120), "estimated_weight": [40.0] * 20})
+        report = identifiability_report(edges, approx, k=20, width=8192, candidate_capacity=512)
+        self.assertFalse(report.identifiable)
+        self.assertIsNone(report.identifiable_recall)
+        # Strict recall under all-ties is arbitrary tie-breaking -- the metric's point.
+        self.assertGreaterEqual(report.strict_recall, 0.0)
+        self.assertLessEqual(report.strict_recall, 1.0)
+        self.assertEqual(report.tie_aware_recall, 1.0)
+
+    def test_identifiability_report_skewed_core_recovered(self) -> None:
+        from graphsense.metrics import identifiability_report
+
+        weights = [10000, 9000, 8000, 7000, 6000] + [1] * 200
+        edges = pd.DataFrame({"src": range(len(weights)), "dst": range(len(weights)), "bytes": weights})
+        approx = pd.DataFrame({"src": range(5), "dst": range(5), "estimated_weight": weights[:5]})
+        report = identifiability_report(edges, approx, k=5, width=8192, candidate_capacity=512)
+        self.assertTrue(report.identifiable)
+        self.assertEqual(report.identifiable_core_size, 5)
+        self.assertEqual(report.identifiable_recall, 1.0)
+
     def test_certified_selector_cli_writes_conservative_certificate(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             output = Path(tmpdir) / "certified_selector.csv"

@@ -1,0 +1,7 @@
+source,n_edges,strict_recall,tie_aware_recall,identifiable_core_size,identifiable_recall,identifiable
+ctu13_edges,2824636,1.0,1.0,14,1.0,True
+official_prefix_edges,5000000,0.0,1.0,0,,False
+hotspot_zipf,500000,1.0,1.0,10,1.0,True
+community_bursty,500000,0.1,0.05,0,,False
+scanner_fanout,500000,0.0,0.0,0,,False
+uniform_sparse,500000,0.0,0.0,0,,False

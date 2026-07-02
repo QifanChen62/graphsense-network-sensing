@@ -33,6 +33,9 @@
 - [x] Dyadic Count-Min decoder-family control experiment (`results/dyadic_comparison.csv`): identical failure on all-tie official data, same identifiability gradient elsewhere.
 - [x] Real capture CTU-13 scenario 42 integrated (`results/ctu13_summary.csv`, `results/ctu13_candidate_sensitivity.csv`); selector miss on real traffic reported honestly in the paper.
 - [x] Paper restructured around certification (title, abstract, contributions); Sec. IV has identifiability index, sparse-recovery view, and conformal proposition; six pages.
+- [x] Algorithm 1 (conformal budget pricing): memory-minimal certified budget per stream (`graphsense/pricing.py`, `results/conformal_budget_prices.csv`); measured recall 1.0 at the priced budgets (`results/priced_budget_recall.csv`).
+- [x] Identifiability-aware Recall@k with budget-matched core (`graphsense/metrics.py`, `results/identifiable_recall.csv`); metric and screen agree by construction.
+- [x] Two-panel figure: conformal budget frontier + decoder-independent phase diagram (`figures/pricing_phase.png`); one-sided soundness holds (no certified point with low recall).
 - [x] Literature and discussion review saved in `docs/literature_and_discussion_review.md`.
 - [x] IEEE/HPEC-style paper draft under six pages.
 - [x] Paper compiles to a PDF under the six-page limit with the current draft content.

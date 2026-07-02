@@ -1,0 +1,3 @@
+source,n_edges,width,capacity,total_bytes,topk_recall,median_relative_error
+hotspot_zipf,100000,190131,129147,11737944,1.0,0.0
+ctu13_edges,2824636,272058,184706,16792912,1.0,3.596149921418842e-08
