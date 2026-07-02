@@ -114,6 +114,7 @@ def _certificate(prefix: pd.DataFrame, args: argparse.Namespace) -> dict[str, ob
         "rho_unique_pair_ratio": features.unique_pairs / max(features.observed_edges, 1),
         "top_k": args.top_k,
         "topk_weight_share": p_k,
+        "kth_weight_share": (kth_weight / total_weight) if total_weight > 0 else 0.0,
         "topk_gap_share": topk_gap_share,
         "required_candidate_capacity_c_min": c_min,
         "required_cms_epsilon_lt": epsilon_required,
