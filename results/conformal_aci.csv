@@ -1,0 +1,7 @@
+source,n_windows,target_alpha,gamma,realized_miscoverage,final_alpha_t
+ctu13_edges,56,0.1,0.05,0.1111111111111111,0.1250000000000001
+official_prefix_edges,100,0.1,0.05,0.0,0.49500000000000033
+hotspot_zipf,100,0.1,0.05,0.1,0.09500000000000021
+community_bursty,100,0.1,0.05,0.1,0.09500000000000022
+scanner_fanout,100,0.1,0.05,0.1125,0.04500000000000015
+uniform_sparse,100,0.1,0.05,0.1,0.0950000000000002

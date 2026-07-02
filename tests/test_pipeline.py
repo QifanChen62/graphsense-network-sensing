@@ -412,6 +412,99 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(list(sensitivity.columns), expected_columns)
         self.assertEqual(sensitivity["candidate_capacity"].tolist(), [64, 512])
 
+    def test_conformal_lower_bound_is_valid_order_statistic(self) -> None:
+        from graphsense.conformal import conformal_lower_bound
+
+        import numpy as np
+
+        rng = np.random.default_rng(71)
+        # Exchangeable draws: coverage of the bound must be >= 1 - alpha.
+        misses = 0
+        trials = 400
+        for _ in range(trials):
+            sample = rng.exponential(size=61)
+            bound, rank = conformal_lower_bound(sample[:-1], alpha=0.1)
+            self.assertGreaterEqual(rank, 1)
+            misses += sample[-1] < bound
+        self.assertLessEqual(misses / trials, 0.1 + 0.04)
+
+    def test_conformal_lower_bound_refuses_tiny_samples(self) -> None:
+        from graphsense.conformal import conformal_lower_bound
+
+        bound, rank = conformal_lower_bound([0.5, 0.6, 0.7], alpha=0.1)
+        self.assertEqual(rank, 0)
+        self.assertEqual(bound, float("-inf"))
+
+    def test_conformal_certificate_threshold_and_decision(self) -> None:
+        from graphsense.conformal import budget_threshold, conformal_certificate
+
+        import numpy as np
+
+        threshold = budget_threshold(width=16384, depth=5, candidate_capacity=5000)
+        scores = np.full(99, threshold * 3.0)
+        certificate = conformal_certificate(scores, alpha=0.1, width=16384, depth=5, candidate_capacity=5000)
+        self.assertTrue(certificate.certified)
+        self.assertGreater(certificate.margin, 0)
+
+        low_scores = np.full(99, threshold * 0.5)
+        refused = conformal_certificate(low_scores, alpha=0.1, width=16384, depth=5, candidate_capacity=5000)
+        self.assertFalse(refused.certified)
+
+    def test_window_statistics_gap_implies_retention(self) -> None:
+        from graphsense.conformal import window_statistics
+
+        edges = make_synthetic_edges(
+            n_edges=40000,
+            n_sources=128,
+            n_destinations=128,
+            seed=73,
+            regime="hotspot_zipf",
+            label_mode="int",
+        )
+        stats = window_statistics(edges, window_edges=5000, top_k=10)
+        self.assertEqual(len(stats), 8)
+        # w_k >= Delta_k always, so kth share dominates gap share per window.
+        self.assertTrue((stats["kth_weight_share"] >= stats["topk_gap_share"] - 1e-12).all())
+        self.assertTrue((stats["topk_gap_share"] >= 0).all())
+
+    def test_adaptive_alpha_tracks_target_miscoverage(self) -> None:
+        from graphsense.conformal import adaptive_alpha_trajectory
+
+        import numpy as np
+
+        rng = np.random.default_rng(79)
+        # Drifting scores break exchangeability; ACI should still land near target.
+        scores = np.concatenate([rng.normal(1.0, 0.1, 150), rng.normal(0.5, 0.1, 150)])
+        trajectory = adaptive_alpha_trajectory(scores, target_alpha=0.1, gamma=0.05)
+        self.assertGreater(len(trajectory), 200)
+        self.assertLess(abs(trajectory.attrs["realized_miscoverage"] - 0.1), 0.08)
+
+    def test_dyadic_descent_recovers_hotspot_heavy_hitters(self) -> None:
+        from graphsense.dyadic import dyadic_topk_recall
+
+        edges = make_synthetic_edges(
+            n_edges=20000,
+            n_sources=128,
+            n_destinations=128,
+            seed=83,
+            regime="hotspot_zipf",
+            label_mode="int",
+        )
+        exact_top = top_k_edges(edges_to_sparse(edges), k=10)
+        result = dyadic_topk_recall(edges, exact_top, k=10, width=4096, depth=4, beam=1024)
+        self.assertGreaterEqual(result["topk_recall"], 0.9)
+        self.assertGreater(result["levels"], 1)
+
+    def test_dyadic_key_packing_round_trip(self) -> None:
+        from graphsense.dyadic import edges_to_keys
+
+        edges = pd.DataFrame({"src": [3, 7, 1], "dst": [5, 2, 6], "bytes": [10, 20, 30]})
+        keys, weights, key_bits, dst_bits = edges_to_keys(edges)
+        self.assertEqual(list(weights), [10.0, 20.0, 30.0])
+        for i, (src, dst) in enumerate([(3, 5), (7, 2), (1, 6)]):
+            self.assertEqual(int(keys[i]) >> dst_bits, src)
+            self.assertEqual(int(keys[i]) & ((1 << dst_bits) - 1), dst)
+
     def test_certified_selector_cli_writes_conservative_certificate(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             output = Path(tmpdir) / "certified_selector.csv"

@@ -29,6 +29,10 @@
 - [x] SuiteSparse:GraphBLAS construction baseline including native 2^32 hypersparse mode (`results/graphblas_comparison.csv`).
 - [x] Safety-screen c_min uses the rigorous SpaceSaving retention bound (W/w_k), which quantitatively predicts the empirical capacity sweep.
 - [x] Paper language audited: S3 products named as the official synthetic Random PCAP / Random GraphBLAS variants; no real-telescope-traffic claim.
+- [x] Conformal identifiability certificates: distribution-free coverage over stream windows, coverage experiment, ACI under drift (`results/conformal_certificates.csv`, `results/conformal_coverage.csv`, `results/conformal_aci.csv`); positioned against Sesia-Favaro conformal frequency estimation.
+- [x] Dyadic Count-Min decoder-family control experiment (`results/dyadic_comparison.csv`): identical failure on all-tie official data, same identifiability gradient elsewhere.
+- [x] Real capture CTU-13 scenario 42 integrated (`results/ctu13_summary.csv`, `results/ctu13_candidate_sensitivity.csv`); selector miss on real traffic reported honestly in the paper.
+- [x] Paper restructured around certification (title, abstract, contributions); Sec. IV has identifiability index, sparse-recovery view, and conformal proposition; six pages.
 - [x] Literature and discussion review saved in `docs/literature_and_discussion_review.md`.
 - [x] IEEE/HPEC-style paper draft under six pages.
 - [x] Paper compiles to a PDF under the six-page limit with the current draft content.
