@@ -558,6 +558,28 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(report.identifiable_core_size, 5)
         self.assertEqual(report.identifiable_recall, 1.0)
 
+    def test_router_agrees_disagrees_and_falls_back(self) -> None:
+        from graphsense.router import route
+
+        agree = route(0.01, 0.03, gap_lower_bound=4.4e-5, memory_budget_bytes=64_000_000, heuristic_choice="sparse_direct")
+        self.assertEqual(agree.exact_choice, "sparse_direct")
+        self.assertIn("agree", agree.exact_source)
+        self.assertEqual(agree.sketch_decision, "certifiable_within_budget")
+
+        disagree = route(0.01, 0.03, gap_lower_bound=4.4e-5, memory_budget_bytes=64_000_000, heuristic_choice="pandas_groupby")
+        self.assertEqual(disagree.exact_choice, "sparse_direct")
+        self.assertIn("disagree", disagree.exact_source)
+
+        all_tie = route(0.01, 0.03, gap_lower_bound=0.0, memory_budget_bytes=64_000_000)
+        self.assertEqual(all_tie.sketch_decision, "unidentifiable")
+        self.assertIn("exact", all_tie.online_route)
+
+        diffuse = route(0.01, 0.03, gap_lower_bound=1.1e-7, memory_budget_bytes=64_000_000)
+        self.assertEqual(diffuse.sketch_decision, "not_worth_it")
+
+        over = route(0.01, 0.03, gap_lower_bound=4.4e-5, memory_budget_bytes=1_000_000)
+        self.assertEqual(over.sketch_decision, "certifiable_over_budget")
+
     def test_certified_selector_cli_writes_conservative_certificate(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             output = Path(tmpdir) / "certified_selector.csv"
